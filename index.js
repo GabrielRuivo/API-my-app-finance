@@ -6,6 +6,10 @@ const app = express();
 app.use(cors());
 const port = 3000;
 
+app.get('/', async (req, res) => {
+  return res.send({ message: 'Server is running !!!' });
+})
+
 app.get('/data', async (req, res) => {
   try {
     const browser = await puppeteer.launch({ headless: 'new' });
