@@ -12,38 +12,62 @@ app.get('/', async (req, res) => {
 
 app.get('/data', async (req, res) => {
   try {
-    const browser = await puppeteer.launch({ headless: 'new' });
+    const browser = await puppeteer.launch({ headless: false });
     const page = await browser.newPage();
 
-    const ativo = 'hglg11';
+    const data = [];
 
-    await page.goto(`https://statusinvest.com.br/fundos-imobiliarios/${ativo}`);
+    const fiis = [
+      'hglg11', 
+      'bcff11', 
+      'XPLG11', 
+      'TRBL11', 
+      'HSML11', 
+      'GGRC11', 
+      'FIIB11', 
+      'RECR11', 
+      'MXRF11', 
+      'HTMX11',
+      'CVBI11',
+      'XPIN11',
+      'HFOF11',
+      'VISC11',
+      'KNCR11',
+    ];
 
-    const totalValueElement = await page.$(`[title="Valor atual do ativo"] > .value`);
-    const totalValue = await page.evaluate(element => element.textContent, totalValueElement);
+    for (let ativo of fiis) {
+      await page.goto(`https://statusinvest.com.br/fundos-imobiliarios/${ativo}`);
 
-    const dividendYieldElement = await page.$(`[title="Dividend Yield com base nos últimos 12 meses"] > .value`);
-    const dividendYieldValue = await page.evaluate(element => element.textContent, dividendYieldElement);
+      const totalValueElement = await page.$(`[title="Valor atual do ativo"] > .value`);
+      const totalValue = await page.evaluate(element => element.textContent, totalValueElement);
 
-    await page.waitForSelector('.container');
+      const dividendYieldElement = await page.$(`[title="Dividend Yield com base nos últimos 12 meses"] > .value`);
+      const dividendYieldValue = await page.evaluate(element => element.textContent, dividendYieldElement);
 
-    const pvpValue = await page.$$eval('div.info', infoDivs => {
-      const pvpDiv = infoDivs.find(div => div.querySelector('h3.title').textContent === 'P/VP');
-      return pvpDiv.querySelector('strong.value').textContent;
-    });
+      await page.waitForSelector('.container');
+
+      const pvpValue = await page.$$eval('div.info', infoDivs => {
+        const pvpDiv = infoDivs.find(div => div.querySelector('h3.title').textContent === 'P/VP');
+        return pvpDiv.querySelector('strong.value').textContent;
+      });
+
+      await delay(500);
+
+      data.push({ ativo, totalValue, dividendYieldValue, pvpValue })
+    }
 
     await browser.close();
 
-    const data = {
-      totalValue,
-      dividendYieldValue,
-      pvpValue
-    };
+    const sortedData = data.sort((a, b) => parseFloat(a.pvpValue.replace(',', '.')) - parseFloat(b.pvpValue.replace(',', '.')));
 
-    res.json(data);
+    res.json(sortedData);
   } catch (error) {
     console.error(error);
     res.status(500).send('Internal Server Error');
+  }
+
+  function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 });
 
