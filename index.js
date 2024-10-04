@@ -18,25 +18,25 @@ app.get('/data', async (req, res) => {
     const data = [];
 
     const fiis = [
+      'KNCR11',
+      'VISC11',
+      'XPLG11', 
       'hglg11', 
       'bcff11', 
-      'XPLG11', 
-      'TRBL11', 
-      'HSML11', 
-      'GGRC11', 
-      'FIIB11', 
-      'RECR11', 
-      'MXRF11', 
       'HTMX11',
       'CVBI11',
+      'FIIB11', 
+      'MXRF11', 
+      'RECR11', 
+      'HSML11', 
+      'TRBL11', 
+      'GGRC11', 
       'XPIN11',
-      'HFOF11',
-      'VISC11',
-      'KNCR11',
+      'HFOF11'
     ];
 
-    for (let ativo of fiis) {
-      await page.goto(`https://statusinvest.com.br/fundos-imobiliarios/${ativo}`);
+    for (let ticker of fiis) {
+      await page.goto(`https://statusinvest.com.br/fundos-imobiliarios/${ticker}`);
 
       const totalValueElement = await page.$(`[title="Valor atual do ativo"] > .value`);
       const totalValue = await page.evaluate(element => element.textContent, totalValueElement);
@@ -49,16 +49,56 @@ app.get('/data', async (req, res) => {
       const pvpValue = await page.$$eval('div.info', infoDivs => {
         const pvpDiv = infoDivs.find(div => div.querySelector('h3.title').textContent === 'P/VP');
         return pvpDiv.querySelector('strong.value').textContent;
-      });
+      }); 
+
+      const nextDividendElement = await page.$('#main-2 > div.container.pb-7 > div.mt-5.d-flex.flex-wrap.flex-lg-nowrap.justify-between > div.bg-secondary.white-text.card.w-100.w-md-45 > div > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div > b');
+      const nextDividend = await page.evaluate(el => el.textContent, nextDividendElement)
+
+      const lastDividendElement = await page.$('#dy-info > div > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div > b');
+      const lastDividend = await page.evaluate(el => el.textContent, lastDividendElement)
+
+      const numberShareholderElement = await page.$('#main-2 > div.container.pb-7 > div:nth-child(5) > div > div:nth-child(6) > div > div:nth-child(1) > strong');
+      const numberShareholder = await page.evaluate(el => el.textContent, numberShareholderElement)
+
+      const averageDailyLiquidityElement = await page.$('#main-2 > div.container.pb-7 > div:nth-child(6) > div > div > div.info.p-0 > div > div > div > strong');
+      const averageDailyLiquidity = await page.evaluate(el => el.textContent, averageDailyLiquidityElement)
+      
+      const followUpElement = await page.$('#fund-section > div > div > div.card.bg-main-gd-h.white-text.rounded.pt-1.pb-1 > div > div:nth-child(1) > div > div > div > a > strong');
+      const followUp = await page.evaluate(el => el.textContent, followUpElement)
 
       await delay(500);
 
-      data.push({ ativo, totalValue, dividendYieldValue, pvpValue })
+      data.push({ 
+        ativo: ticker, 
+        seguimento: followUp,
+        valor: totalValue, 
+        dividendosUltimos12Meses: dividendYieldValue, 
+        pvp: pvpValue, 
+        proximoDividendo: nextDividend, 
+        ultimoDividendo: lastDividend, 
+        cotistas: numberShareholder,
+        liquidezMediaDiaria: averageDailyLiquidity
+      })
     }
 
     await browser.close();
 
-    const sortedData = data.sort((a, b) => parseFloat(a.pvpValue.replace(',', '.')) - parseFloat(b.pvpValue.replace(',', '.')));
+    const sortedData = data.sort((a, b) => {
+      // Ordena pelo menor pvp
+      const pvpA = parseFloat(a.pvp.replace(',', '.'));
+      const pvpB = parseFloat(b.pvp.replace(',', '.'));
+      if (pvpA !== pvpB) return pvpA - pvpB;
+      
+      // Ordena pelo maior proximoDividendo, ignorando se for "-"
+      const proxDivA = a.proximoDividendo === "-" ? -Infinity : parseFloat(a.proximoDividendo.replace(',', '.'));
+      const proxDivB = b.proximoDividendo === "-" ? -Infinity : parseFloat(b.proximoDividendo.replace(',', '.'));
+      if (proxDivA !== proxDivB) return proxDivB - proxDivA;
+  
+      // Ordena pelo maior ultimoDividendo
+      const ultDivA = parseFloat(a.ultimoDividendo.replace(',', '.'));
+      const ultDivB = parseFloat(b.ultimoDividendo.replace(',', '.'));
+      return ultDivB - ultDivA;
+    });  
 
     res.json(sortedData);
   } catch (error) {
